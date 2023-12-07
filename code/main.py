@@ -15,13 +15,12 @@ Image datasets from: https://github.com/ByUnal/Example-based-Image-Colorization-
 '''
 
 #Step 0 Load in Reference and Target Image as grayscale
-ref = cv2.imread('../castle.jpeg', cv2.IMREAD_GRAYSCALE)
-target = cv2.imread('../castle.jpeg', cv2.IMREAD_GRAYSCALE)
+ref = cv2.imread('../data/p014_a_source.png', cv2.IMREAD_GRAYSCALE)
+target = cv2.imread('../data/p014_b_target.png', cv2.IMREAD_GRAYSCALE)
 print(ref.shape)
 print(target.shape)
 #show images
 cv2.imshow('Reference', ref)
-cv2.waitKey(0)
 cv2.imshow('Target', target)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
@@ -36,7 +35,11 @@ ref_luminance = mean_luminance(ref)
 ref_entropy, ref_homogeneity, ref_correlation = extract_glcm_features(ref)
 ref_lbp = lbp(ref)
 
-
+print(target_luminance.shape)
+print(target_entropy.shape)
+print(target_homogeneity.shape)
+print(target_correlation.shape)
+print(target_lbp.shape)
 
 # Step 2 Superpixel Extraction Using ISLIC for grayscale
 num_segments = 800
@@ -52,6 +55,5 @@ cv2.imshow('Reference Superpixels', ref_superpixels)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
 
-
-
 # Step 3 Feature Mapping and Colorization
+
