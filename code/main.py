@@ -84,24 +84,69 @@ cv2.destroyAllWindows()
 #         the target pixel
 
 def superpixel_features(image, segments):
+    '''
+    Calculates entropy and mean luminence of each superpixel
+    and puts them into dictionaries where their superpixel number
+    functions as the key
+    '''
+    superpixel_features = {}
     for i in np.max(segments) + 1: 
+        superpixel = []
         for row in image.shape[0]:
             for col in image.shape[1]:
                 if segments[row, col] == i:
-                    pass
+                    superpixel.append(image[row, col])
+                    
+        superpixel = np.array(superpixel)
 
-def find_best_match(target, ref):
-    pass
+        mean_luminance = np.mean(superpixel)
+        entropy = -np.sum(superpixel * np.log(superpixel))
+        superpixel_features[i] = (mean_luminance, entropy)
+
+    return superpixel_features
+
+
+reference_features  = superpixel_features(ref, segments_ref)
+target_features = superpixel_features(target, segments_target)
+
+
+def find_best_match(target_features, ref_superpixels):
+    best_diff = np.inf
+    best_match = None
+    for i in range(len(ref_superpixels)):
+        difference  = np.abs(target_features[0] - ref_superpixels[i][0]) + np.abs(target_features[1] - ref_superpixels[i][1])
+        if difference < best_diff:
+            best_diff = difference
+            best_match = i
+    
+    return best_match
+
+    
+
 
 
 num_superpixels_target = np.max(segments_target) + 1
+def colorize(target, ref, segments_target, segments_ref, reference_features, target_features):
+    '''
+    Colorizes the target image using the reference image
+    '''
+    for row in range (2, target.shape[0]-2):
+        for col in range(2, target.shape[1]-2):
+
+            #get best superpixel match
+            target_superpixel = segments_target[row, col]
+            target_superpixel_features = target_features[target_superpixel]
+            superpixel = find_best_match(target_superpixel_features, reference_features)
+            
+            for row in range (2, ref.shape[0] - 2):
+                for col in range(2, ref.shape[1] + 2):
+                    if segments_ref[row, col] == superpixel:
+
+                        
+            
+
 
 for i in num_superpixels_target: # for each super pixel
-    for row in target.shape[0]:
-        for col in target.shape[1]:
-            if segments_target[row, col] == i: 
-
-                # find the best matching superpixel in the reference image for the target
-                best_match = find_best_match(target, ref)
-                
-                # convert both su
+        for row in target.shape[0]:
+            for col in target.shape[1]:
+                if segments_target[row, col] == i: 
