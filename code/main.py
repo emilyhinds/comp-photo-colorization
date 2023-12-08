@@ -21,6 +21,7 @@ Image datasets from: https://github.com/ByUnal/Example-based-Image-Colorization-
 
 #Step 0 Load in Reference and Target Image as grayscale
 ref = cv2.imread('../data/p014_a_source.png', cv2.IMREAD_GRAYSCALE)
+ref_color = cv2.imread('../data/p014_a_source.png', cv2.IMREAD_COLOR)
 target = cv2.imread('../data/p014_b_target.png', cv2.IMREAD_GRAYSCALE)
 print(ref.shape)
 print(target.shape)
@@ -47,6 +48,8 @@ cv2.destroyAllWindows()
 # print(target_lbp.shape)
 
 # Step 2 Superpixel Extraction Using ISLIC for grayscale
+
+
 num_segments = 800
 alpha = 0.8
 beta = 0.8
@@ -99,10 +102,7 @@ def superpixel_features(image, segments):
         for row in range(image.shape[0]):
             for col in range(image.shape[1]):
                 if segments[row, col] == i:
-                    if image[row, col] == 0:
-                        superpixel.append(0.000000001)
-                    else:
-                        superpixel.append(image[row, col])
+                    superpixel.append(image[row, col] + 0.0000000000000001)
                     if row < min_row:
                         min_row = row
                     if row > max_row:
@@ -140,14 +140,12 @@ target_features = superpixel_features(target, segments_target)
 def find_best_match(target_features, ref_superpixels):
     best_diff = np.inf
     best_match = None
-    print(len(ref_superpixels))
     for i in range(len(ref_superpixels)):
         difference  = np.abs(target_features[0] - ref_superpixels[i][0]) + np.abs(target_features[1] - ref_superpixels[i][1])
         if difference < best_diff:
             best_diff = difference
             best_match = i
-    
-    print(best_match)
+ 
     return best_match
 
     
@@ -160,9 +158,11 @@ def colorize(target, ref, segments_target, segments_ref, reference_features, tar
     '''
     Colorizes the target image using the reference image
     '''
+    ref = cv2.cvtColor(ref, cv2.COLOR_BGR2LAB)
+    colorized = np.zeros((target.shape[0], target.shape[1], 3))
     for row in range (2, target.shape[0]-2):
         for col in range(2, target.shape[1]-2):
-
+            print(row/target.shape[0])
             #get best superpixel match
             target_superpixel = segments_target[row, col]
             target_superpixel_features = target_features[target_superpixel]
@@ -192,17 +192,19 @@ def colorize(target, ref, segments_target, segments_ref, reference_features, tar
                     random_pixel += 1
 
             #assign best match to target pixel
-            target[row, col] = best_match
+            colorized[row, col] = (target_pixel, best_match[1], best_match[2])
     
-    return target
+    return colorized
 
 
-colorized = colorize(target, ref, segments_target, segments_ref, reference_features, target_features)
-
+colorized = colorize(target, ref_color, segments_target, segments_ref, reference_features, target_features)
+colorized = (colorized * 255).astype(np.uint8)
+print(colorized.shape)
 #Convert back form LAB to RGB
 colorized = cv2.cvtColor(colorized, cv2.COLOR_LAB2RGB)
 cv2.imshow('Colorized', colorized)
-
+cv2.waitKey(0)
+cv2.destroyAllWindows()
 
             
                                                          
