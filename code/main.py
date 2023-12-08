@@ -196,9 +196,38 @@ def colorize(target, ref, segments_target, segments_ref, reference_features, tar
     
     return colorized
 
+def colorize2(target, ref):
+    ref = cv2.cvtColor(ref, cv2.COLOR_BGR2LAB)
+    colorized = np.zeros((target.shape[0], target.shape[1], 3))
+    for row in range(2, target.shape[0]-2):
+        for col in range(2, target.shape[1]-2):
+            print(row/target.shape[0])
+            target_pixel = target[row, col]
+            
+            neighbors = target[row-2:row+2, col-2:col+2][0]
+            target_measure = np.abs(((0.5 * np.mean(neighbors))  + (0.5 * np.std(neighbors))) / 2)
+
+            best_match = None
+            best_diff = np.inf
+
+            for i in range(200):
+                rand_row = np.random.randint(2, ref.shape[0]-2)
+                rand_col = np.random.randint(2, ref.shape[1]-2)
+                ref_pixel = ref[rand_row, rand_col]
+                ref_neighbors = ref[rand_row-2:rand_row+2, rand_col-2:rand_col+2][0]
+                ref_measure = np.abs(((0.5 * np.mean(ref_neighbors))  + (0.5 * np.std(ref_neighbors))) / 2)
+                difference = np.abs(target_measure - ref_measure)
+                if difference < best_diff:
+                    best_diff = difference
+                    best_match = ref_pixel
+        
+            colorized[row, col] = (target_pixel, best_match[1], best_match[2])
+
+            
 
 colorized = colorize(target, ref_color, segments_target, segments_ref, reference_features, target_features)
-colorized = (colorized * 255).astype(np.uint8)
+#colorized = colorize2(target, ref_color)
+colorized = (colorized).astype(np.uint8)
 print(colorized.shape)
 #Convert back form LAB to RGB
 colorized = cv2.cvtColor(colorized, cv2.COLOR_LAB2RGB)
