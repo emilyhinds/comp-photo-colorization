@@ -24,10 +24,10 @@ Image datasets from: https://github.com/ByUnal/Example-based-Image-Colorization-
 #Step 0 Load in Reference and Target Image as grayscale
 curr_img = 2
 
-ref = cv2.imread('../data/p00' + str(curr_img) + '_a_source.png', cv2.IMREAD_GRAYSCALE)
-ref_color = cv2.imread('../data/p00' + str(curr_img) + '_a_source.png', cv2.IMREAD_COLOR)
-target = cv2.imread('../data/p00' + str(curr_img) + '_b_target.png', cv2.IMREAD_GRAYSCALE)
-ground_truth = cv2.imread('../data/p00' + str(curr_img) + '_c_groundtruth.png', cv2.IMREAD_COLOR)
+ref = cv2.imread(str(curr_img) + '_a_source.png', cv2.IMREAD_GRAYSCALE)
+ref_color = cv2.imread(str(curr_img) + '_a_source.png', cv2.IMREAD_COLOR)
+target = cv2.imread(str(curr_img) + '_b_target.png', cv2.IMREAD_GRAYSCALE)
+ground_truth = cv2.imread(str(curr_img) + '_c_groundtruth.png', cv2.IMREAD_COLOR)
 
 
 print(ref.shape)
