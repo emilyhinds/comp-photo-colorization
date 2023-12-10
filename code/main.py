@@ -22,7 +22,7 @@ Image datasets from: https://github.com/ByUnal/Example-based-Image-Colorization-
 '''
 
 #Step 0 Load in Reference and Target Image as grayscale
-curr_img = 7
+curr_img = 2
 
 ref = cv2.imread('../data/p00' + str(curr_img) + '_a_source.png', cv2.IMREAD_GRAYSCALE)
 ref_color = cv2.imread('../data/p00' + str(curr_img) + '_a_source.png', cv2.IMREAD_COLOR)
@@ -214,21 +214,33 @@ def colorize(target, ref_color, segments_target, segments_ref, reference_feature
             # print(colorized[row, col])
     
     return colorized
+ 
+def neighborhoods(image):
+    '''
+    Returns image of same size where pixel values are tuples, average luminance and standard deviation of luminance
+    '''
+    neighborhoods = np.zeros((image.shape[0], image.shape[1]), dtype=object)
+    for row in range(2, image.shape[0]-2):
+        for col in range(2, image.shape[1]-2):
+            neighbors = image[row - 2 : row + 2, col - 2 : col + 2]
+            neighborhoods[row, col] = (np.mean(neighbors), np.std(neighbors))
+
+    return neighborhoods
 
 def colorize2(target, ref):
-    ref = cv2.cvtColor(ref, cv2.COLOR_BGR2Lab)
+    target_feats = neighborhoods(target)
+    ref_feats = neighborhoods(ref)
+    ref = cv2.cvtColor((ref), cv2.COLOR_BGR2Lab) # Convert color reference to LAB space
+
     colorized = np.zeros((target.shape[0], target.shape[1], 3))
+
     for row in tqdm(range(2, target.shape[0]-2)):
         for col in range(2, target.shape[1]-2):
             
             
             # print(row/target.shape[0])
-            
-            target_pixel = target[row, col]
-            
-            neighbors = target[row-2:row+2, col-2:col+2][0]
-            target_measure = np.abs(((0.5 * np.mean(neighbors))  + (0.5 * np.std(neighbors))) / 2)
-
+            target_pix = target[row, col]
+            target_feature = target_feats[row, col]
             best_match = None
             best_diff = np.inf
 
@@ -236,14 +248,17 @@ def colorize2(target, ref):
                 rand_row = np.random.randint(2, ref.shape[0]-2)
                 rand_col = np.random.randint(2, ref.shape[1]-2)
                 ref_pixel = ref[rand_row, rand_col]
-                ref_neighbors = ref[rand_row-2:rand_row+2, rand_col-2:rand_col+2][0]
-                ref_measure = np.abs(((0.5 * np.mean(ref_neighbors))  + (0.5 * np.std(ref_neighbors))) / 2)
-                difference = np.abs(target_measure - ref_measure)
+                ref_feature = ref_feats[rand_row, rand_col]
+                difference  = ((np.abs(target_feature[0] - ref_feature[0])*0.5) + (np.abs(target_feature[1] - ref_feature[1])*0.5))/2
+
                 if difference < best_diff:
                     best_diff = difference
                     best_match = ref_pixel
 
-            colorized[row, col] = (target_pixel, best_match[1], best_match[2])
+            
+            
+
+            colorized[row, col] = (target_pix, best_match[1], best_match[2])
 
     return colorized
 
@@ -251,7 +266,8 @@ def colorize2(target, ref):
 reference_features  = superpixel_features(ref, segments_ref)
 target_features = superpixel_features(target, segments_target)
 
-colorized = colorize(target, ref_color, segments_target, segments_ref, reference_features, target_features)
+#colorized = colorize(target, ref_color, segments_target, segments_ref, reference_features, target_features)
+colorized = colorize2(target, ref_color)
 # Split the LAB image into its channels
 l_channel, a_channel, b_channel = cv2.split(colorized)
 
@@ -277,9 +293,9 @@ print(colorized.dtype)
 
 
 # colorized = colorize2(target, ref_color)
-colorized[:,:,0] = colorized[:,:,0] * 256
-colorized[:,:,1] = colorized[:,:,1] + 128
-colorized[:,:,2] = colorized[:,:,2] + 128
+colorized[:,:,0] = colorized[:,:,0]
+colorized[:,:,1] = colorized[:,:,1] 
+colorized[:,:,2] = colorized[:,:,2] 
 print(colorized[2:colorized.shape[0]-2, 2:colorized.shape[1]-2, :])
 
 colorized = (colorized).astype(np.uint8)
