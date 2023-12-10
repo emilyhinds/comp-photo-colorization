@@ -4,6 +4,7 @@ from feature_extraction import mean_luminance, extract_glcm_features, lbp
 from sklearn import svm
 from skimage.segmentation import slic, mark_boundaries
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 
 '''
@@ -21,49 +22,40 @@ Image datasets from: https://github.com/ByUnal/Example-based-Image-Colorization-
 '''
 
 #Step 0 Load in Reference and Target Image as grayscale
-ref = cv2.imread('../data/p002_a_source.png', cv2.IMREAD_GRAYSCALE)
-ref_color = cv2.imread('../data/p002_a_source.png', cv2.IMREAD_COLOR)
-target = cv2.imread('../data/p002_b_target.png', cv2.IMREAD_GRAYSCALE)
+curr_img = 7
+
+ref = cv2.imread('../data/p00' + str(curr_img) + '_a_source.png', cv2.IMREAD_GRAYSCALE)
+ref_color = cv2.imread('../data/p00' + str(curr_img) + '_a_source.png', cv2.IMREAD_COLOR)
+target = cv2.imread('../data/p00' + str(curr_img) + '_b_target.png', cv2.IMREAD_GRAYSCALE)
+ground_truth = cv2.imread('../data/p00' + str(curr_img) + '_c_groundtruth.png', cv2.IMREAD_COLOR)
 
 
 print(ref.shape)
 print(target.shape)
 #show images
-cv2.imshow('Reference', ref)
 cv2.imshow('Target', target)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+cv2.imshow('Reference', ref)
+cv2.imshow('Reference Color', ref_color)
 
+cv2.waitKey()
+# cv2.destroyAllWindows()
 
-# # Step 1 Feature Extraction (Luminance, Entropy, Homogeneity, Correlation, LBP, and SVM)
-# target_luminance = mean_luminance(target)
-# target_entropy, target_homogeneity, target_correlation = extract_glcm_features(target)
-# target_lbp = lbp(target)
-
-# ref_luminance = mean_luminance(ref)
-# ref_entropy, ref_homogeneity, ref_correlation = extract_glcm_features(ref)
-# ref_lbp = lbp(ref)
-
-# print(target_luminance.shape)
-# print(target_entropy.shape)
-# print(target_homogeneity.shape)
-# print(target_correlation.shape)
-# print(target_lbp.shape)
 
 # Step 2 Superpixel Extraction Using ISLIC for grayscale
 
 
-num_segments = 800
+# num_segments = 800
+num_segments = 200
 alpha = 0.8
 beta = 0.8
 segments_target = slic(target, n_segments=num_segments, compactness=alpha, sigma=beta, channel_axis=None)
 segments_ref = slic(ref, n_segments=num_segments, compactness=alpha, sigma=beta, channel_axis=None)
-# target_superpixels = mark_boundaries(target, segments_target)
-# ref_superpixels = mark_boundaries(ref, segments_ref)
+target_superpixels = mark_boundaries(target, segments_target)
+ref_superpixels = mark_boundaries(ref, segments_ref)
 
-# cv2.imshow('Target Superpixels', target_superpixels)
-# cv2.imshow('Reference Superpixels', ref_superpixels)
-# cv2.waitKey(0)
+cv2.imshow('Target Superpixels', target_superpixels)
+cv2.imshow('Reference Superpixels', ref_superpixels)
+cv2.waitKey(0)
 # cv2.destroyAllWindows()
 
 # Step 3 Feature Mapping and Colorization
@@ -115,7 +107,7 @@ def superpixel_features(image, segments):
                     if col > max_col:
                         max_col = col
 
-                    #ensure max and min row and max and min col are two away from edge
+                    # ensure max and min row and max and min col are two away from edge
                     if min_row < 2:
                         min_row = 2
                     if min_col < 2:
@@ -132,6 +124,22 @@ def superpixel_features(image, segments):
 
     return superpixel_features
 
+def show_superpixel(superpixel_id, segments, image):
+    '''
+    Shows the superpixel with the given superpixel number
+    '''
+    print("show superpixel")
+    print(image.dtype)
+    print(image)
+    superpixel_image = np.zeros((segments.shape[0], segments.shape[1]))
+    for row in range(segments.shape[0]):
+        for col in range(segments.shape[1]):
+            if segments[row, col] == superpixel_id:
+                superpixel_image[row, col] = image[row, col]
+    cv2.imshow('Superpixel', superpixel_image)
+    cv2.waitKey(0)
+    # cv2.destroyAllWindows()
+
 
 def find_best_match(target_features, ref_superpixels):
     best_diff = np.inf
@@ -145,22 +153,40 @@ def find_best_match(target_features, ref_superpixels):
     return best_match
 
 
-def colorize(target, ref, segments_target, segments_ref, reference_features, target_features):
+def colorize(target, ref_color, segments_target, segments_ref, reference_features, target_features):
     '''
     Colorizes the target image using the reference image
     '''
-    ref = cv2.cvtColor(ref, cv2.COLOR_BGR2LAB)
-    colorized = np.zeros((target.shape[0], target.shape[1], 3))
+    print(target.dtype)
+    print(ref_color.dtype)
+    target = (target/256).astype(np.float32) # Convert target to float32
+    ref_color = cv2.cvtColor((ref_color/256).astype(np.float32), cv2.COLOR_BGR2Lab) # Convert color reference to LAB space
+    # print(target) # goes 0 -> 1
+    # print(ref_color) # goes -128 -> 127
+    print("color ref type:", ref_color.dtype)
+    print("target type:", target.dtype)
+    # ref_color = ref_color.astype(np.float32)
+
+    colorized = np.zeros((target.shape[0], target.shape[1], 3), dtype=np.float32)
+    
+    # loop through target image except along edges
     for row in tqdm(range(2, target.shape[0]-2)):
         for col in range(2, target.shape[1]-2):
+            #print(ref_color[row][col])
+
             #get best superpixel match
             target_superpixel = segments_target[row, col]
             target_superpixel_features = target_features[target_superpixel]
             ref_superpixel = find_best_match(target_superpixel_features, reference_features)
             
+            # show_superpixel(target_superpixel, segments_target, target)
+            # print(ref_color.shape)
+            # show_superpixel(ref_superpixel, segments_ref, ref_color[:,:,0])
+
+
             #get best pixel match in superpixel
             target_pixel = target[row, col]
-            neighbors = target[row-2:row+2, col-2:col+2][0]
+            neighbors = target[row - 2 : row + 2, col - 2 : col + 2]
             target_measure = np.abs(((0.5 * np.mean(neighbors))  + (0.5 * np.std(neighbors))) / 2)
 
             best_match = None
@@ -172,8 +198,8 @@ def colorize(target, ref, segments_target, segments_ref, reference_features, tar
                 rand_row = np.random.randint(reference_features[ref_superpixel][2], reference_features[ref_superpixel][3])
                 rand_col = np.random.randint(reference_features[ref_superpixel][4], reference_features[ref_superpixel][5]) 
                 if segments_ref[rand_row, rand_col] == ref_superpixel:
-                    ref_pixel = ref[rand_row, rand_col]
-                    ref_neighbors = ref[rand_row-2:rand_row+2, rand_col-2:rand_col+2][0]
+                    ref_pixel = ref_color[rand_row, rand_col]
+                    ref_neighbors = ref_color[rand_row - 2 : rand_row + 2, rand_col - 2 : rand_col + 2][0]
                     ref_measure = np.abs(((0.5 * np.mean(ref_neighbors))  + (0.5 * np.std(ref_neighbors))) / 2)
                     difference = np.abs(target_measure - ref_measure)
                     if difference < best_diff:
@@ -181,13 +207,16 @@ def colorize(target, ref, segments_target, segments_ref, reference_features, tar
                         best_match = ref_pixel
                     random_pixel += 1
 
+            # print(best_match)
             #assign best match to target pixel
+            #print(best_match)
             colorized[row, col] = (target_pixel, best_match[1], best_match[2])
+            # print(colorized[row, col])
     
     return colorized
 
 def colorize2(target, ref):
-    ref = cv2.cvtColor(ref, cv2.COLOR_BGR2LAB)
+    ref = cv2.cvtColor(ref, cv2.COLOR_BGR2Lab)
     colorized = np.zeros((target.shape[0], target.shape[1], 3))
     for row in tqdm(range(2, target.shape[0]-2)):
         for col in range(2, target.shape[1]-2):
@@ -203,7 +232,7 @@ def colorize2(target, ref):
             best_match = None
             best_diff = np.inf
 
-            for i in range(200):
+            for _ in range(200):
                 rand_row = np.random.randint(2, ref.shape[0]-2)
                 rand_col = np.random.randint(2, ref.shape[1]-2)
                 ref_pixel = ref[rand_row, rand_col]
@@ -213,7 +242,7 @@ def colorize2(target, ref):
                 if difference < best_diff:
                     best_diff = difference
                     best_match = ref_pixel
-        
+
             colorized[row, col] = (target_pixel, best_match[1], best_match[2])
 
     return colorized
@@ -223,25 +252,54 @@ reference_features  = superpixel_features(ref, segments_ref)
 target_features = superpixel_features(target, segments_target)
 
 colorized = colorize(target, ref_color, segments_target, segments_ref, reference_features, target_features)
+# Split the LAB image into its channels
+l_channel, a_channel, b_channel = cv2.split(colorized)
+
+# Display each channel separately using cv2.imshow
+plt.figure(figsize=(12, 4))
+
+plt.subplot(1, 3, 1)
+plt.imshow(l_channel, cmap='gray')
+plt.title('L Channel')
+
+plt.subplot(1, 3, 2)
+plt.imshow(a_channel, cmap='gray')
+plt.title('A Channel')
+
+plt.subplot(1, 3, 3)
+plt.imshow(b_channel, cmap='gray')
+plt.title('B Channel')
+
+plt.show()
+# colorized_without_border = colorized[2:colorized.shape[0]-2, 2:colorized.shape[1]-2, :]
+print(colorized.dtype)
+# print(colorized[2:colorized.shape[0]-2, 2:colorized.shape[1]-2, :])
+
+
 # colorized = colorize2(target, ref_color)
+colorized[:,:,0] = colorized[:,:,0] * 256
+colorized[:,:,1] = colorized[:,:,1] + 128
+colorized[:,:,2] = colorized[:,:,2] + 128
+print(colorized[2:colorized.shape[0]-2, 2:colorized.shape[1]-2, :])
+
 colorized = (colorized).astype(np.uint8)
-print(colorized.shape)
+
+ 
+
+
 #Convert back form LAB to RGB
-colorized = cv2.cvtColor(colorized, cv2.COLOR_LAB2RGB)
-colorized = cv2.cvtColor(colorized, cv2.COLOR_RGB2BGR)
+colorized = cv2.cvtColor(colorized, cv2.COLOR_Lab2BGR)
+
+print("POST CONVERSION TO BGR")
+print(colorized[2:colorized.shape[0]-2, 2:colorized.shape[1]-2, :])
+
+
+colorized = (colorized).astype(np.uint8)
+
+print("POST CONVERSION TO UINT8")
+print(colorized[2:colorized.shape[0]-2, 2:colorized.shape[1]-2, :])
+
+cv2.imshow('Ground Truth', ground_truth)
 cv2.imshow('Colorized', colorized)
-cv2.waitKey(0)
+cv2.waitKey()
 cv2.destroyAllWindows()
-
-            
-                                                         
-
-
-                        
-            
-
-
-# for i in num_superpixels_target: # for each super pixel
-#         for row in target.shape[0]:
-#             for col in target.shape[1]:
-#                 if segments_target[row, col] == i: 
