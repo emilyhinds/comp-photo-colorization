@@ -22,7 +22,7 @@ Image datasets from: https://github.com/ByUnal/Example-based-Image-Colorization-
 '''
 
 #Step 0 Load in Reference and Target Image as grayscale
-curr_img = 26
+curr_img = 7
 
 ref = cv2.imread('../data/' + str(curr_img) + '_a_source.png', cv2.IMREAD_GRAYSCALE)
 ref_color = cv2.imread('../data/' + str(curr_img) + '_a_source.png', cv2.IMREAD_COLOR)
@@ -61,49 +61,70 @@ cv2.imshow('Reference Superpixels', ref_superpixels)
 cv2.waitKey(0)
 
 
-# create an array size of ref with every value mean luminance of reference
-# this could be wrong: "in this paper, the mean luminance of the grayscale
-# image and that of the color image are utilized as a descriptor"
-luminance = np.full((ref.shape[0], ref.shape[1]), np.mean(ref))
 
-# calculate GLCM for target image
-# calculate entropy, homogeneity, and correlation for each superpixel
-# use these as features for the SVM
-glcm = graycomatrix(ref, [1], [0, np.pi/4, np.pi/2, 3*np.pi/4], levels=256, normed=True)
-entropy = graycoprops(glcm, 'energy')
-homogeneity = graycoprops(glcm, 'homogeneity')
-correlation = graycoprops(glcm, 'correlation')
+def local_features(img):
+    '''
+    Calculates mean luminance, entropy, homogeneity, correlation, and LBP for image based 
+    on sliding 3x3 window to acheive local texture descriptors
+    '''
+    features = np.zeros((img.shape[0]-2, img.shape[1]-2, 5))
+    for row in range(img.shape[0]+1, img.shape[0]-1):
+        for col in range(img.shape[1]+1, img.shape[1]-1):
+            window = img[row-1:row+1, col-1:col+1]
+            mean_luminance = np.mean(window)
+            glcm = graycomatrix(window, [1], [0, np.pi/4, np.pi/2, 3*np.pi/4], levels=256, normed=False)
+            entropy = graycoprops(glcm, 'energy')
+            homogeneity = graycoprops(glcm, 'homogeneity')
+            correlation = graycoprops(glcm, 'correlation')
+            lbp = local_binary_pattern(window, 8, 1, method='uniform')
+            features[row, col] = (mean_luminance, entropy, homogeneity, correlation, lbp)
+    return features
 
-# compute LBP to use as feature for svm
-lbp = local_binary_pattern(ref, 8, 1, method='uniform') # 8 neighbors, radius 1
+def max_color_channel(ref, ref_color):
+    bgr_image = np.zeros_like(ref)
 
-print(luminance.shape)
-print(entropy.shape)
-print(homogeneity.shape)
-print(correlation.shape)
-print(lbp.shape)
+    for row in range (ref.shape[0]):
+        for col in range (ref.shape[1]):
+            max_channel  = np.argmax(ref_color[row, col])
+            bgr_image[row, col] = max_channel
+            # print(max_channel)
+    return bgr_image
 
+def visualize_classifier(classifier, description):
+    visualize = np.zeros_like(classifier)
+    for row in range (classifier.shape[0]):
+        for col in range (classifier.shape[1]):
+            if classifier[row, col] == 0:
+                visualize[row, col] = [255, 0, 0]
+            elif classifier[row, col] == 1:
+                visualize[row, col] = [0, 255, 0]
+            elif classifier[row, col] == 2:
+                visualize[row, col] = [0, 0, 255]
+    
+    cv2.imshow(description, visualize)
+    cv2.waitKey(0)
 
-features = [luminance, entropy, homogeneity, correlation, lbp]
+ref_features = local_features(ref)
+target_features = local_features(target)
+label_color = max_color_channel(ref, ref_color)
+label_color = label_color[1:label_color.shape[0]-1, 1:label_color.shape[1]-1]
 
-svm_classifier = svm.SVC(kernel='rbf')
-svm_classifier.fit(features, ref_color)
+# Step 2.5 SVM Classification
 
-clusters = 3
-cluster_assignments = np.zeros_like(ref)
-for cluster_label in range(clusters):
-    # Create binary labels for the current cluster
-    binary_labels = (cluster_assignments == cluster_label).astype(int)
+svm_model = svm.SVC(kernel='rbf')
+print("fitting model")
+svm_model.fit(ref_features.flatten().reshape(-1, 5), label_color.flatten())
 
-    # Train SVM for binary clustering
-    svm_classifier = svm.SVC(kernel='linear', C=1)
-    cluster_assignments += svm_classifier.fit_predict(features, binary_labels)
-
-# Reshape the cluster assignments to the shape of the image
-cluster_assignments_svm = cluster_assignments.reshape(grayscale_image.shape)
-
-
-
+print("predicting target")
+target_class = svm_model.predict(target_features.flatten().reshape(-1, 5))
+target_class = target_class.reshape((target.shape[0]-2, target.shape[1]-2))
+visualize_classifier(target_class, 'target image classifier')
+print("predicting ref")
+ref_class = label_color
+visualize_classifier(ref_class, 'reference image classifier')
+# ref_class = svm_model.predict(ref_features.flatten().reshape(-1, 5))
+# ref_class = ref_class.reshape((ref.shape[0]-2, ref.shape[1]-2))
+print("done predicting")
 
 
 # Step 3 Feature Mapping and Colorization
@@ -201,7 +222,7 @@ def find_best_match(target_features, ref_superpixels):
     return best_match
 
 
-def colorize(target, ref_color, segments_target, segments_ref, reference_features, target_features):
+def colorize(target, ref_color, segments_target, segments_ref, reference_features, target_features, ref_class, target_class):
     '''
     Colorizes the target image using the reference image
     '''
@@ -229,7 +250,8 @@ def colorize(target, ref_color, segments_target, segments_ref, reference_feature
             target_superpixel = segments_target[row, col]
             target_superpixel_features = target_features[target_superpixel]
             ref_superpixel = find_best_match(target_superpixel_features, reference_features)
-            
+            target_pixel_class = target_class[row-1, col-1]
+           
             # show_superpixel(target_superpixel, segments_target, target)
             # print(ref_color.shape)
             # show_superpixel(ref_superpixel, segments_ref, ref_color[:,:,0])
@@ -253,7 +275,8 @@ def colorize(target, ref_color, segments_target, segments_ref, reference_feature
                     ref_neighbors = ref_color[rand_row - 2 : rand_row + 2, rand_col - 2 : rand_col + 2][0]
                     ref_measure = np.abs(((0.5 * np.mean(ref_neighbors))  + (0.5 * np.std(ref_neighbors))) / 2)
                     difference = np.abs(target_measure - ref_measure)
-                    if difference < best_diff:
+                    reference_pixel_class = ref_class[rand_row-1, rand_col-1]
+                    if (difference < best_diff) and (target_pixel_class == reference_pixel_class):
                         best_diff = difference
                         best_match = ref_pixel
                     random_pixel += 1
@@ -350,8 +373,8 @@ def colorize2(target, ref):
 reference_features  = superpixel_features(ref, segments_ref)
 target_features = superpixel_features(target, segments_target)
 
-# colorized = colorize(target, ref_color, segments_target, segments_ref, reference_features, target_features)
-colorized = colorize2(target, ref_color)
+colorized = colorize(target, ref_color, segments_target, segments_ref, reference_features, target_features, ref_class, target_class)
+#colorized = colorize2(target, ref_color)
 
 display_lab(colorized)
 
