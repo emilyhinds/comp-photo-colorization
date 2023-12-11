@@ -68,16 +68,22 @@ def local_features(img):
     on sliding 3x3 window to acheive local texture descriptors
     '''
     features = np.zeros((img.shape[0]-2, img.shape[1]-2, 5))
-    for row in range(img.shape[0]+1, img.shape[0]-1):
-        for col in range(img.shape[1]+1, img.shape[1]-1):
+    for row in tqdm(range(1, img.shape[0]-1)):
+        for col in range(1, img.shape[1]-1):
             window = img[row-1:row+1, col-1:col+1]
             mean_luminance = np.mean(window)
             glcm = graycomatrix(window, [1], [0, np.pi/4, np.pi/2, 3*np.pi/4], levels=256, normed=False)
-            entropy = graycoprops(glcm, 'energy')
-            homogeneity = graycoprops(glcm, 'homogeneity')
-            correlation = graycoprops(glcm, 'correlation')
-            lbp = local_binary_pattern(window, 8, 1, method='uniform')
-            features[row, col] = (mean_luminance, entropy, homogeneity, correlation, lbp)
+            entropy = np.mean(graycoprops(glcm, 'energy'))
+            homogeneity = np.mean(graycoprops(glcm, 'homogeneity'))
+            correlation = np.mean(graycoprops(glcm, 'correlation'))
+            lbp = np.mean(local_binary_pattern(window, 8, 1, method='uniform'))
+            # print("mean luminance : ", mean_luminance)
+            # print("entropy : ", entropy)
+            # print("homogeneity : ", homogeneity)
+            # print("correlation : ", correlation)
+            # print("lbp : ", lbp)
+
+            features[row - 1, col - 1] = (mean_luminance, entropy, homogeneity, correlation, lbp)
     return features
 
 def max_color_channel(ref, ref_color):
@@ -91,7 +97,7 @@ def max_color_channel(ref, ref_color):
     return bgr_image
 
 def visualize_classifier(classifier, description):
-    visualize = np.zeros_like(classifier)
+    visualize = np.zeros((classifier.shape[0], classifier.shape[1], 3))
     for row in range (classifier.shape[0]):
         for col in range (classifier.shape[1]):
             if classifier[row, col] == 0:
@@ -105,7 +111,9 @@ def visualize_classifier(classifier, description):
     cv2.waitKey(0)
 
 ref_features = local_features(ref)
+print("reference features", ref_features)
 target_features = local_features(target)
+print("target_features", target_features)
 label_color = max_color_channel(ref, ref_color)
 label_color = label_color[1:label_color.shape[0]-1, 1:label_color.shape[1]-1]
 
@@ -118,9 +126,14 @@ svm_model.fit(ref_features.flatten().reshape(-1, 5), label_color.flatten())
 print("predicting target")
 target_class = svm_model.predict(target_features.flatten().reshape(-1, 5))
 target_class = target_class.reshape((target.shape[0]-2, target.shape[1]-2))
+print('target class', target_class)
+print('target class shape', target_class.shape)
 visualize_classifier(target_class, 'target image classifier')
+
 print("predicting ref")
 ref_class = label_color
+print('ref class', ref_class)
+print('ref class shape', ref_class.shape)
 visualize_classifier(ref_class, 'reference image classifier')
 # ref_class = svm_model.predict(ref_features.flatten().reshape(-1, 5))
 # ref_class = ref_class.reshape((ref.shape[0]-2, ref.shape[1]-2))
@@ -150,7 +163,7 @@ print("done predicting")
 #      d. Assign the a,b channel of the best matching pixel in the reference to 
 #         the target pixel
 
-def superpixel_features(image, segments):
+def superpixel_features(image, segments, classification):
     '''
     Calculates entropy and mean luminence of each superpixel
     and puts them into dictionaries where their superpixel number
@@ -163,6 +176,9 @@ def superpixel_features(image, segments):
         max_row = -np.inf
         min_col = np.inf
         max_col = -np.inf
+        b = 0
+        g = 0
+        r = 0
         for row in range(image.shape[0]):
             for col in range(image.shape[1]):
                 if segments[row, col] == i:
@@ -186,10 +202,18 @@ def superpixel_features(image, segments):
                     if max_col > image.shape[1] - 2:
                         max_col = image.shape[1] - 2
                     
+                    if row > 0 and col > 0 and row < image.shape[0] - 1 and col < image.shape[1] - 1:
+                        if classification[row-1, col-1] == 0:
+                            b = 1
+                        elif classification[row-1, col-1] == 1:
+                            g = 1
+                        elif classification[row-1, col-1] == 2:
+                            r = 1
+                    
         superpixel = np.array(superpixel).flatten()
         mean_luminance = np.mean(superpixel)
         entropy = -np.sum(superpixel * np.log(superpixel))
-        superpixel_features[i] = (mean_luminance, entropy, min_row, max_row, min_col, max_col)
+        superpixel_features[i] = (mean_luminance, entropy, min_row, max_row, min_col, max_col, b, g, r)
 
     return superpixel_features
 
@@ -210,14 +234,26 @@ def show_superpixel(superpixel_id, segments, image):
     # cv2.destroyAllWindows()
 
 
-def find_best_match(target_features, ref_superpixels):
+def find_best_match(target_features, ref_superpixels, target_pixel_class):
+    '''
+    Finds the best matching superpixel in the reference image
+    target_features: tuple of mean luminance and entropy of target superpixel
+    ref_superpixels: dictionary of superpixel features in reference image
+    target_pixel_class: class of target pixel (0, 1, or 2) for b, g, or r
+    ref_class: array of superpixel classes in reference image
+    ref: reference image
+    '''
     best_diff = np.inf
     best_match = None
     for i in range(len(ref_superpixels)):
         difference  = np.abs(target_features[0] - ref_superpixels[i][0]) + np.abs(target_features[1] - ref_superpixels[i][1])
+        print(difference)
         if difference < best_diff:
-            best_diff = difference
-            best_match = i
+            print(ref_superpixels[i][6 + target_pixel_class])
+            print(ref_superpixels[i][6 + target_pixel_class] == 1)
+            if ref_superpixels[i][6 + target_pixel_class] == 1:
+                best_diff = difference
+                best_match = i
  
     return best_match
 
@@ -249,8 +285,9 @@ def colorize(target, ref_color, segments_target, segments_ref, reference_feature
             #get best superpixel match
             target_superpixel = segments_target[row, col]
             target_superpixel_features = target_features[target_superpixel]
-            ref_superpixel = find_best_match(target_superpixel_features, reference_features)
             target_pixel_class = target_class[row-1, col-1]
+            ref_superpixel = find_best_match(target_superpixel_features, reference_features, target_pixel_class)
+            
            
             # show_superpixel(target_superpixel, segments_target, target)
             # print(ref_color.shape)
@@ -370,8 +407,8 @@ def colorize2(target, ref):
     return colorized
 
 
-reference_features  = superpixel_features(ref, segments_ref)
-target_features = superpixel_features(target, segments_target)
+reference_features  = superpixel_features(ref, segments_ref, ref_class)
+target_features = superpixel_features(target, segments_target, target_class)
 
 colorized = colorize(target, ref_color, segments_target, segments_ref, reference_features, target_features, ref_class, target_class)
 #colorized = colorize2(target, ref_color)
@@ -391,4 +428,4 @@ print(colorized[2:colorized.shape[0]-2, 2:colorized.shape[1]-2, :])
 cv2.imshow('Ground Truth', ground_truth)
 cv2.imshow('Colorized', colorized)
 cv2.waitKey()
-cv2.destroyAllWindows()
+# cv2.destroyAllWindows()
