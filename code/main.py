@@ -22,7 +22,7 @@ Image datasets from: https://github.com/ByUnal/Example-based-Image-Colorization-
 '''
 
 #Step 0 Load in Reference and Target Image as grayscale
-curr_img = 50
+curr_img = 26
 
 ref = cv2.imread('../data/' + str(curr_img) + '_a_source.png', cv2.IMREAD_GRAYSCALE)
 ref_color = cv2.imread('../data/' + str(curr_img) + '_a_source.png', cv2.IMREAD_COLOR)
@@ -45,7 +45,7 @@ cv2.waitKey()
 
 
 # num_segments = 800
-num_segments = 20
+num_segments = 200
 alpha = 0.8
 beta = 0.8
 segments_target = slic(target, n_segments=num_segments, compactness=alpha, sigma=beta, channel_axis=None)
@@ -159,15 +159,18 @@ def colorize(target, ref_color, segments_target, segments_ref, reference_feature
     '''
     print(target.dtype)
     print(ref_color.dtype)
-    target = (target/256).astype(np.float32) # Convert target to float32
-    ref_color = cv2.cvtColor((ref_color/256).astype(np.float32), cv2.COLOR_BGR2Lab) # Convert color reference to LAB space
+    # target = (target/256).astype(np.float32) # Convert target to float32
+    # ref_color = cv2.cvtColor((ref_color/256).astype(np.float32), cv2.COLOR_BGR2Lab) # Convert color reference to LAB space
+    
+    ref_color = cv2.cvtColor(ref_color, cv2.COLOR_BGR2Lab) # Convert color reference to LAB space
+    
     # print(target) # goes 0 -> 1
     # print(ref_color) # goes -128 -> 127
     print("color ref type:", ref_color.dtype)
     print("target type:", target.dtype)
     # ref_color = ref_color.astype(np.float32)
 
-    colorized = np.zeros((target.shape[0], target.shape[1], 3), dtype=np.float32)
+    colorized = np.zeros((target.shape[0], target.shape[1], 3), dtype=np.uint8)
     
     # loop through target image except along edges
     for row in tqdm(range(2, target.shape[0]-2)):
@@ -299,10 +302,14 @@ def colorize2(target, ref):
 reference_features  = superpixel_features(ref, segments_ref)
 target_features = superpixel_features(target, segments_target)
 
-colorized = colorize(target, ref_color, segments_target, segments_ref, reference_features, target_features)
-# colorized = colorize2(target, ref_color)
+# colorized = colorize(target, ref_color, segments_target, segments_ref, reference_features, target_features)
+colorized = colorize2(target, ref_color)
 
 display_lab(colorized)
+
+print("post colorized")
+print(colorized.dtype)
+print(colorized[2:colorized.shape[0]-2, 2:colorized.shape[1]-2, :])
 
 #Convert back form LAB to BGR
 colorized = cv2.cvtColor(colorized, cv2.COLOR_Lab2BGR)
