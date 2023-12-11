@@ -22,12 +22,12 @@ Image datasets from: https://github.com/ByUnal/Example-based-Image-Colorization-
 '''
 
 #Step 0 Load in Reference and Target Image as grayscale
-curr_img = 2
+curr_img = 50
 
-ref = cv2.imread(str(curr_img) + '_a_source.png', cv2.IMREAD_GRAYSCALE)
-ref_color = cv2.imread(str(curr_img) + '_a_source.png', cv2.IMREAD_COLOR)
-target = cv2.imread(str(curr_img) + '_b_target.png', cv2.IMREAD_GRAYSCALE)
-ground_truth = cv2.imread(str(curr_img) + '_c_groundtruth.png', cv2.IMREAD_COLOR)
+ref = cv2.imread('../data/' + str(curr_img) + '_a_source.png', cv2.IMREAD_GRAYSCALE)
+ref_color = cv2.imread('../data/' + str(curr_img) + '_a_source.png', cv2.IMREAD_COLOR)
+target = cv2.imread('../data/' + str(curr_img) + '_b_target.png', cv2.IMREAD_GRAYSCALE)
+ground_truth = cv2.imread('../data/' + str(curr_img) + '_c_groundtruth.png', cv2.IMREAD_COLOR)
 
 
 print(ref.shape)
@@ -45,7 +45,7 @@ cv2.waitKey()
 
 
 # num_segments = 800
-num_segments = 200
+num_segments = 20
 alpha = 0.8
 beta = 0.8
 segments_target = slic(target, n_segments=num_segments, compactness=alpha, sigma=beta, channel_axis=None)
@@ -215,6 +215,28 @@ def colorize(target, ref_color, segments_target, segments_ref, reference_feature
     
     return colorized
  
+
+def display_lab(image):
+    '''
+    Displays the LAB channels of an image
+    '''
+    l_channel, a_channel, b_channel = cv2.split(image)
+    plt.figure(figsize=(12, 4))
+
+    plt.subplot(1, 3, 1)
+    plt.imshow(l_channel, cmap='gray')
+    plt.title('L Channel: luminance')
+
+    plt.subplot(1, 3, 2)
+    plt.imshow(a_channel, cmap='gray')
+    plt.title('A Channel: green-red')
+
+    plt.subplot(1, 3, 3)
+    plt.imshow(b_channel, cmap='gray')
+    plt.title('B Channel: blue-yellow')
+
+    plt.show()
+
 def neighborhoods(image):
     '''
     Returns image of same size where pixel values are tuples, average luminance and standard deviation of luminance
@@ -230,15 +252,23 @@ def neighborhoods(image):
 def colorize2(target, ref):
     target_feats = neighborhoods(target)
     ref_feats = neighborhoods(ref)
+    print("colorize 2 start", target.dtype) # uint8
+    print(target) # 0-255
+    
+    print(ref.dtype) # uint8
+    # print(target) # 0-255
+    
     ref = cv2.cvtColor((ref), cv2.COLOR_BGR2Lab) # Convert color reference to LAB space
 
-    colorized = np.zeros((target.shape[0], target.shape[1], 3))
+    print(ref.dtype) # uint8
+    # print(ref) # 0-255
+
+    colorized = np.zeros((target.shape[0], target.shape[1], 3)).astype(np.uint8)
 
     for row in tqdm(range(2, target.shape[0]-2)):
+    # for row in range(2, target.shape[0]-2):
         for col in range(2, target.shape[1]-2):
             
-            
-            # print(row/target.shape[0])
             target_pix = target[row, col]
             target_feature = target_feats[row, col]
             best_match = None
@@ -255,64 +285,29 @@ def colorize2(target, ref):
                     best_diff = difference
                     best_match = ref_pixel
 
-            
-            
 
             colorized[row, col] = (target_pix, best_match[1], best_match[2])
+            # print('best match', best_match)
+            # print('combined', colorized[row, col])
 
+    print("end of colorize2 function")
+    print(colorized.dtype)
+    print(colorized[2:colorized.shape[0]-2, 2:colorized.shape[1]-2, :])
     return colorized
 
 
 reference_features  = superpixel_features(ref, segments_ref)
 target_features = superpixel_features(target, segments_target)
 
-#colorized = colorize(target, ref_color, segments_target, segments_ref, reference_features, target_features)
-colorized = colorize2(target, ref_color)
-# Split the LAB image into its channels
-l_channel, a_channel, b_channel = cv2.split(colorized)
-
-# Display each channel separately using cv2.imshow
-plt.figure(figsize=(12, 4))
-
-plt.subplot(1, 3, 1)
-plt.imshow(l_channel, cmap='gray')
-plt.title('L Channel')
-
-plt.subplot(1, 3, 2)
-plt.imshow(a_channel, cmap='gray')
-plt.title('A Channel')
-
-plt.subplot(1, 3, 3)
-plt.imshow(b_channel, cmap='gray')
-plt.title('B Channel')
-
-plt.show()
-# colorized_without_border = colorized[2:colorized.shape[0]-2, 2:colorized.shape[1]-2, :]
-print(colorized.dtype)
-# print(colorized[2:colorized.shape[0]-2, 2:colorized.shape[1]-2, :])
-
-
+colorized = colorize(target, ref_color, segments_target, segments_ref, reference_features, target_features)
 # colorized = colorize2(target, ref_color)
-colorized[:,:,0] = colorized[:,:,0]
-colorized[:,:,1] = colorized[:,:,1] 
-colorized[:,:,2] = colorized[:,:,2] 
-print(colorized[2:colorized.shape[0]-2, 2:colorized.shape[1]-2, :])
 
-colorized = (colorized).astype(np.uint8)
+display_lab(colorized)
 
- 
-
-
-#Convert back form LAB to RGB
+#Convert back form LAB to BGR
 colorized = cv2.cvtColor(colorized, cv2.COLOR_Lab2BGR)
-
 print("POST CONVERSION TO BGR")
-print(colorized[2:colorized.shape[0]-2, 2:colorized.shape[1]-2, :])
-
-
-colorized = (colorized).astype(np.uint8)
-
-print("POST CONVERSION TO UINT8")
+print(colorized.dtype)
 print(colorized[2:colorized.shape[0]-2, 2:colorized.shape[1]-2, :])
 
 cv2.imshow('Ground Truth', ground_truth)
