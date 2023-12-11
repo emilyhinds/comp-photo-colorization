@@ -1,8 +1,8 @@
 import numpy as np
 import cv2
-from feature_extraction import mean_luminance, extract_glcm_features, lbp
 from sklearn import svm
 from skimage.segmentation import slic, mark_boundaries
+from skimage.feature import graycomatrix, graycoprops, local_binary_pattern
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
@@ -43,8 +43,11 @@ cv2.waitKey()
 
 # Step 2 Superpixel Extraction Using ISLIC for grayscale
 
+# segment the image and then run the svm on each superpixel
+# for naive classification using a radial basis kernel function in the SVM
 
-# num_segments = 800
+
+# num_segments = 800 # as suggested by paper
 num_segments = 200
 alpha = 0.8
 beta = 0.8
@@ -56,7 +59,52 @@ ref_superpixels = mark_boundaries(ref, segments_ref)
 cv2.imshow('Target Superpixels', target_superpixels)
 cv2.imshow('Reference Superpixels', ref_superpixels)
 cv2.waitKey(0)
-# cv2.destroyAllWindows()
+
+
+# create an array size of ref with every value mean luminance of reference
+# this could be wrong: "in this paper, the mean luminance of the grayscale
+# image and that of the color image are utilized as a descriptor"
+luminance = np.full((ref.shape[0], ref.shape[1]), np.mean(ref))
+
+# calculate GLCM for target image
+# calculate entropy, homogeneity, and correlation for each superpixel
+# use these as features for the SVM
+glcm = graycomatrix(ref, [1], [0, np.pi/4, np.pi/2, 3*np.pi/4], levels=256, normed=True)
+entropy = graycoprops(glcm, 'energy')
+homogeneity = graycoprops(glcm, 'homogeneity')
+correlation = graycoprops(glcm, 'correlation')
+
+# compute LBP to use as feature for svm
+lbp = local_binary_pattern(ref, 8, 1, method='uniform') # 8 neighbors, radius 1
+
+print(luminance.shape)
+print(entropy.shape)
+print(homogeneity.shape)
+print(correlation.shape)
+print(lbp.shape)
+
+
+features = [luminance, entropy, homogeneity, correlation, lbp]
+
+svm_classifier = svm.SVC(kernel='rbf')
+svm_classifier.fit(features, ref_color)
+
+clusters = 3
+cluster_assignments = np.zeros_like(ref)
+for cluster_label in range(clusters):
+    # Create binary labels for the current cluster
+    binary_labels = (cluster_assignments == cluster_label).astype(int)
+
+    # Train SVM for binary clustering
+    svm_classifier = svm.SVC(kernel='linear', C=1)
+    cluster_assignments += svm_classifier.fit_predict(features, binary_labels)
+
+# Reshape the cluster assignments to the shape of the image
+cluster_assignments_svm = cluster_assignments.reshape(grayscale_image.shape)
+
+
+
+
 
 # Step 3 Feature Mapping and Colorization
 
