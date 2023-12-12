@@ -3,6 +3,8 @@ import cv2
 from sklearn import svm
 from skimage.segmentation import slic, mark_boundaries
 from skimage.feature import graycomatrix, graycoprops, local_binary_pattern
+from skimage.color import lab2rgb, rgb2lab
+from skimage import io
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
@@ -22,7 +24,7 @@ Image datasets from: https://github.com/ByUnal/Example-based-Image-Colorization-
 '''
 
 #Step 0 Load in Reference and Target Image as grayscale
-curr_img = 7
+curr_img = 9
 
 ref = cv2.imread('../data/' + str(curr_img) + '_a_source.png', cv2.IMREAD_GRAYSCALE)
 ref_color = cv2.imread('../data/' + str(curr_img) + '_a_source.png', cv2.IMREAD_COLOR)
@@ -30,8 +32,8 @@ target = cv2.imread('../data/' + str(curr_img) + '_b_target.png', cv2.IMREAD_GRA
 ground_truth = cv2.imread('../data/' + str(curr_img) + '_c_groundtruth.png', cv2.IMREAD_COLOR)
 
 
-print(ref.shape)
-print(target.shape)
+# print(ref.shape)
+# print(target.shape)
 #show images
 cv2.imshow('Target', target)
 cv2.imshow('Reference', ref)
@@ -176,6 +178,9 @@ def superpixel_features(image, segments, classification):
         max_row = -np.inf
         min_col = np.inf
         max_col = -np.inf
+        b_count = 0
+        g_count = 0
+        r_count = 0
         b = 0
         g = 0
         r = 0
@@ -204,12 +209,19 @@ def superpixel_features(image, segments, classification):
                     
                     if row > 0 and col > 0 and row < image.shape[0] - 1 and col < image.shape[1] - 1:
                         if classification[row-1, col-1] == 0:
-                            b = 1
+                            b_count += 1
                         elif classification[row-1, col-1] == 1:
-                            g = 1
+                            g_count += 1
                         elif classification[row-1, col-1] == 2:
-                            r = 1
-                    
+                            r_count += 1
+
+        if b_count >= 50:
+            b = 1
+        if g_count >= 50:
+            g = 1
+        if r_count >= 50:
+            r = 1
+
         superpixel = np.array(superpixel).flatten()
         mean_luminance = np.mean(superpixel)
         entropy = -np.sum(superpixel * np.log(superpixel))
@@ -242,18 +254,44 @@ def find_best_match(target_features, ref_superpixels, target_pixel_class):
     target_pixel_class: class of target pixel (0, 1, or 2) for b, g, or r
     ref_class: array of superpixel classes in reference image
     ref: reference image
+    
+    returns: best_match, an integer that is the superpixel number of the best match
+             in the reference image
     '''
     best_diff = np.inf
     best_match = None
+    print('target pixel class', target_pixel_class)
     for i in range(len(ref_superpixels)):
         difference  = np.abs(target_features[0] - ref_superpixels[i][0]) + np.abs(target_features[1] - ref_superpixels[i][1])
-        print(difference)
+        print(difference) # sometimes this is nan
         if difference < best_diff:
-            print(ref_superpixels[i][6 + target_pixel_class])
-            print(ref_superpixels[i][6 + target_pixel_class] == 1)
-            if ref_superpixels[i][6 + target_pixel_class] == 1:
-                best_diff = difference
-                best_match = i
+            # print(ref_superpixels[i][6 + target_pixel_class])
+            # print(ref_superpixels[i][6 + target_pixel_class] == 1)
+
+            if target_pixel_class == 0:
+                if ref_superpixels[i][6] == 1:
+                    best_diff = difference
+                    best_match = i
+                    print("found best match, # " + str(i) + " for class " + str(target_pixel_class))
+            
+            elif target_pixel_class == 1:
+                if ref_superpixels[i][7] == 1:
+                    best_diff = difference
+                    best_match = i
+                    print("found best match, # " + str(i) + " for class " + str(target_pixel_class))
+            
+            elif target_pixel_class == 2:    
+                if ref_superpixels[i][8] == 1:
+                    best_diff = difference
+                    best_match = i
+                    print("found best match, # " + str(i) + " for class " + str(target_pixel_class))
+
+            # # this should work but I don't think it does for some reason 
+            # if ref_superpixels[i][6 + target_pixel_class] == 1:
+            #     best_diff = difference
+            #     best_match = i
+            #     # this seems to never work for classes other than 0
+            #     print("found best match, # " + str(i) + " for class " + str(target_pixel_class))
  
     return best_match
 
@@ -277,6 +315,8 @@ def colorize(target, ref_color, segments_target, segments_ref, reference_feature
 
     colorized = np.zeros((target.shape[0], target.shape[1], 3), dtype=np.uint8)
     
+    no_matches = 0
+
     # loop through target image except along edges
     for row in tqdm(range(2, target.shape[0]-2)):
         for col in range(2, target.shape[1]-2):
@@ -288,6 +328,7 @@ def colorize(target, ref_color, segments_target, segments_ref, reference_feature
             target_pixel_class = target_class[row-1, col-1]
             ref_superpixel = find_best_match(target_superpixel_features, reference_features, target_pixel_class)
             
+            print("DONE FINDING BEST MATCH")
            
             # show_superpixel(target_superpixel, segments_target, target)
             # print(ref_color.shape)
@@ -313,17 +354,21 @@ def colorize(target, ref_color, segments_target, segments_ref, reference_feature
                     ref_measure = np.abs(((0.5 * np.mean(ref_neighbors))  + (0.5 * np.std(ref_neighbors))) / 2)
                     difference = np.abs(target_measure - ref_measure)
                     reference_pixel_class = ref_class[rand_row-1, rand_col-1]
-                    if (difference < best_diff) and (target_pixel_class == reference_pixel_class):
-                        best_diff = difference
-                        best_match = ref_pixel
-                    random_pixel += 1
 
-            # print(best_match)
-            #assign best match to target pixel
-            #print(best_match)
-            colorized[row, col] = (target_pixel, best_match[1], best_match[2])
-            # print(colorized[row, col])
-    
+                    if target_pixel_class == reference_pixel_class:
+                        if (difference < best_diff):
+                            print("FOUND BEST MATCH PIXEL")
+                            best_diff = difference
+                            best_match = ref_pixel
+                        random_pixel += 1
+
+            if best_match is None:
+                no_matches += 1
+                colorized[row, col] = (target_pixel, 0, 0)
+            else: 
+                colorized[row, col] = (target_pixel, best_match[1], best_match[2])
+            
+    print("no matches: ", no_matches)
     return colorized
  
 
@@ -360,12 +405,12 @@ def neighborhoods(image):
 
     return neighborhoods
 
-def colorize2(target, ref):
+def colorize2(target, ref, ref_class, target_class):
     target_feats = neighborhoods(target)
     ref_feats = neighborhoods(ref)
     print("colorize 2 start", target.dtype) # uint8
-    print(target) # 0-255
-    
+    # print(target) # 0-255
+    print(target.dtype) # uint8
     print(ref.dtype) # uint8
     # print(target) # 0-255
     
@@ -382,19 +427,25 @@ def colorize2(target, ref):
             
             target_pix = target[row, col]
             target_feature = target_feats[row, col]
+            target_pixel_class = target_class[row-1, col-1]
+
             best_match = None
             best_diff = np.inf
 
-            for _ in range(200):
+            valid_pixels = 0
+            while valid_pixels < 200:
                 rand_row = np.random.randint(2, ref.shape[0]-2)
                 rand_col = np.random.randint(2, ref.shape[1]-2)
                 ref_pixel = ref[rand_row, rand_col]
                 ref_feature = ref_feats[rand_row, rand_col]
                 difference  = ((np.abs(target_feature[0] - ref_feature[0])*0.5) + (np.abs(target_feature[1] - ref_feature[1])*0.5))/2
+                reference_pixel_class = ref_class[rand_row-1, rand_col-1]
 
-                if difference < best_diff:
-                    best_diff = difference
-                    best_match = ref_pixel
+                if target_pixel_class == reference_pixel_class:
+                    valid_pixels += 1
+                    if difference < best_diff:
+                        best_diff = difference
+                        best_match = ref_pixel
 
 
             colorized[row, col] = (target_pix, best_match[1], best_match[2])
@@ -410,22 +461,50 @@ def colorize2(target, ref):
 reference_features  = superpixel_features(ref, segments_ref, ref_class)
 target_features = superpixel_features(target, segments_target, target_class)
 
-colorized = colorize(target, ref_color, segments_target, segments_ref, reference_features, target_features, ref_class, target_class)
-#colorized = colorize2(target, ref_color)
+# colorized = colorize(target, ref_color, segments_target, segments_ref, reference_features, target_features, ref_class, target_class)
+colorized = colorize2(target, ref_color, ref_class, target_class)
 
 display_lab(colorized)
 
 print("post colorized")
 print(colorized.dtype)
 print(colorized[2:colorized.shape[0]-2, 2:colorized.shape[1]-2, :])
+cv2.imshow('Colorized still in Lab', colorized)
 
 #Convert back form LAB to BGR
-colorized = cv2.cvtColor(colorized, cv2.COLOR_Lab2BGR)
-print("POST CONVERSION TO BGR")
-print(colorized.dtype)
-print(colorized[2:colorized.shape[0]-2, 2:colorized.shape[1]-2, :])
+colorized_cv2 = cv2.cvtColor(colorized, cv2.COLOR_Lab2BGR)
+print("POST CONVERSION TO BGR cv2")
+print(colorized_cv2.dtype)
+print(colorized_cv2[2:colorized_cv2.shape[0]-2, 2:colorized_cv2.shape[1]-2, :])
+
+colorized_cv2_adjusted = colorized_cv2.copy()
+colorized_cv2_adjusted += 128
+cv2.imshow('Colorized converted to bgr using cv2 adjusted', colorized_cv2_adjusted)
+
+colorized_cv2_adjusted2 = colorized_cv2.copy()
+# increment each pixel by the 0th channel of colorized_cv2
+colorized_cv2_adjusted2[:, :, 0] += colorized_cv2[:, :, 0]
+colorized_cv2_adjusted2[:, :, 1] += colorized_cv2[:, :, 0]
+colorized_cv2_adjusted2[:, :, 2] += colorized_cv2[:, :, 0]
+cv2.imshow('Colorized converted to bgr using cv2 adjusted2', colorized_cv2_adjusted2)
 
 cv2.imshow('Ground Truth', ground_truth)
-cv2.imshow('Colorized', colorized)
-cv2.waitKey()
+cv2.imshow('Colorized converted to bgr using cv2', colorized_cv2)
+cv2.waitKey(0)
+
+
+
+colorized_skimage = lab2rgb(colorized).astype(np.uint8)
+print("POST CONVERSION TO RGB skimage as type uint8")
+print(colorized_skimage.dtype)
+print(colorized_skimage[2:colorized_skimage.shape[0]-2, 2:colorized_skimage.shape[1]-2, :])
+# show result
+io.imshow(colorized_skimage)
+io.show()
+
+cv2.imshow('Colorized converted to rgb using skimage', colorized_skimage)
+bgr_colorized_skimage = colorized_skimage[:, :, ::-1].copy()
+cv2.imshow('Colorized converted to bgr using skimage', bgr_colorized_skimage)
+cv2.waitKey(0)
+
 # cv2.destroyAllWindows()
