@@ -24,7 +24,7 @@ Image datasets from: https://github.com/ByUnal/Example-based-Image-Colorization-
 '''
 
 #Step 0 Load in Reference and Target Image as grayscale
-curr_img = 9
+curr_img = 4
 
 ref = cv2.imread('../data/' + str(curr_img) + '_a_source.png', cv2.IMREAD_GRAYSCALE)
 ref_color = cv2.imread('../data/' + str(curr_img) + '_a_source.png', cv2.IMREAD_COLOR)
@@ -109,7 +109,12 @@ def visualize_classifier(classifier, description):
             elif classifier[row, col] == 2:
                 visualize[row, col] = [0, 0, 255]
     
+    visualize_lab = cv2.cvtColor(visualize.copy().astype(np.uint8), cv2.COLOR_BGR2Lab)
     cv2.imshow(description, visualize)
+    cv2.imshow(description + " in Lab", visualize_lab)
+    
+    visualize_bgr_again = cv2.cvtColor(visualize_lab, cv2.COLOR_Lab2BGR)
+    cv2.imshow(description + " in BGR", visualize_bgr_again)
     cv2.waitKey(0)
 
 ref_features = local_features(ref)
@@ -131,6 +136,7 @@ target_class = target_class.reshape((target.shape[0]-2, target.shape[1]-2))
 print('target class', target_class)
 print('target class shape', target_class.shape)
 visualize_classifier(target_class, 'target image classifier')
+
 
 print("predicting ref")
 ref_class = label_color
@@ -461,40 +467,35 @@ def colorize2(target, ref, ref_class, target_class):
 reference_features  = superpixel_features(ref, segments_ref, ref_class)
 target_features = superpixel_features(target, segments_target, target_class)
 
-# colorized = colorize(target, ref_color, segments_target, segments_ref, reference_features, target_features, ref_class, target_class)
-colorized = colorize2(target, ref_color, ref_class, target_class)
+colorized = colorize(target, ref_color, segments_target, segments_ref, reference_features, target_features, ref_class, target_class)
+colorized2 = colorize2(target, ref_color, ref_class, target_class)
 
 display_lab(colorized)
+display_lab(colorized2)
 
 print("post colorized")
 print(colorized.dtype)
 print(colorized[2:colorized.shape[0]-2, 2:colorized.shape[1]-2, :])
 cv2.imshow('Colorized still in Lab', colorized)
+cv2.imshow('Colorized2 still in Lab', colorized2)
 
 #Convert back form LAB to BGR
 colorized_cv2 = cv2.cvtColor(colorized, cv2.COLOR_Lab2BGR)
+colorized2_cv2 = cv2.cvtColor(colorized2, cv2.COLOR_Lab2BGR)
 print("POST CONVERSION TO BGR cv2")
 print(colorized_cv2.dtype)
 print(colorized_cv2[2:colorized_cv2.shape[0]-2, 2:colorized_cv2.shape[1]-2, :])
 
-colorized_cv2_adjusted = colorized_cv2.copy()
-colorized_cv2_adjusted += 128
-cv2.imshow('Colorized converted to bgr using cv2 adjusted', colorized_cv2_adjusted)
 
-colorized_cv2_adjusted2 = colorized_cv2.copy()
-# increment each pixel by the 0th channel of colorized_cv2
-colorized_cv2_adjusted2[:, :, 0] += colorized_cv2[:, :, 0]
-colorized_cv2_adjusted2[:, :, 1] += colorized_cv2[:, :, 0]
-colorized_cv2_adjusted2[:, :, 2] += colorized_cv2[:, :, 0]
-cv2.imshow('Colorized converted to bgr using cv2 adjusted2', colorized_cv2_adjusted2)
 
 cv2.imshow('Ground Truth', ground_truth)
 cv2.imshow('Colorized converted to bgr using cv2', colorized_cv2)
+cv2.imshow('Colorized2 converted to bgr using cv2', colorized2_cv2)
 cv2.waitKey(0)
 
 
 
-colorized_skimage = lab2rgb(colorized).astype(np.uint8)
+colorized_skimage = lab2rgb(colorized).astype(np.float32)
 print("POST CONVERSION TO RGB skimage as type uint8")
 print(colorized_skimage.dtype)
 print(colorized_skimage[2:colorized_skimage.shape[0]-2, 2:colorized_skimage.shape[1]-2, :])
