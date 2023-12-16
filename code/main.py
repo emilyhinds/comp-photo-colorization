@@ -24,7 +24,7 @@ Image datasets from: https://github.com/ByUnal/Example-based-Image-Colorization-
 '''
 
 #Step 0 Load in Reference and Target Image as grayscale
-curr_img = 4
+curr_img = 14
 
 ref = cv2.imread('../data/' + str(curr_img) + '_a_source.png', cv2.IMREAD_GRAYSCALE)
 ref_color = cv2.imread('../data/' + str(curr_img) + '_a_source.png', cv2.IMREAD_COLOR)
@@ -128,8 +128,8 @@ label_color = label_color[1:label_color.shape[0]-1, 1:label_color.shape[1]-1]
 
 svm_model = svm.SVC(kernel='rbf')
 print("fitting model")
+#svm_model.fit(ref_features.flatten().reshape(-1, 5), label_color.flatten())
 svm_model.fit(ref_features.flatten().reshape(-1, 5), label_color.flatten())
-
 print("predicting target")
 target_class = svm_model.predict(target_features.flatten().reshape(-1, 5))
 target_class = target_class.reshape((target.shape[0]-2, target.shape[1]-2))
