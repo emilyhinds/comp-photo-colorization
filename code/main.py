@@ -24,7 +24,7 @@ Image datasets from: https://github.com/ByUnal/Example-based-Image-Colorization-
 '''
 
 #Step 0 Load in Reference and Target Image as grayscale
-curr_img = 14
+curr_img = 4
 
 ref = cv2.imread('../data/' + str(curr_img) + '_a_source.png', cv2.IMREAD_GRAYSCALE)
 ref_color = cv2.imread('../data/' + str(curr_img) + '_a_source.png', cv2.IMREAD_COLOR)
@@ -88,15 +88,39 @@ def local_features(img):
             features[row - 1, col - 1] = (mean_luminance, entropy, homogeneity, correlation, lbp)
     return features
 
-def max_color_channel(ref, ref_color):
-    bgr_image = np.zeros_like(ref)
+# def max_color_channel(ref, ref_color):
+#     bgr_image = np.zeros_like(ref)
 
-    for row in range (ref.shape[0]):
-        for col in range (ref.shape[1]):
-            max_channel  = np.argmax(ref_color[row, col])
-            bgr_image[row, col] = max_channel
-            # print(max_channel)
-    return bgr_image
+#     for row in range (ref.shape[0]):
+#         for col in range (ref.shape[1]):
+#             max_channel  = np.argmax(ref_color[row, col])
+#             bgr_image[row, col] = max_channel
+#             # print(max_channel)
+#     return bgr_image
+
+def max_color_channel(ref_color, c1, c2):
+    max_channels = np.zeros((ref_color.shape[0], ref_color.shape[1]))
+    for row in range (ref_color.shape[0]):
+        for col in range (ref_color.shape[1]):
+            if ref_color[row, col, c1] > ref_color[row, col, c2]:
+                max_channels[row, col] = c1
+            else:
+                max_channels[row, col] = c2
+    return max_channels
+
+#loop through target clsses to make combined 
+def voting(bg, gr, rb):
+    target_class = np.zeros((bg.shape[0], bg.shape[1]))
+    for row in range (target_class.shape[0]):
+        for col in range (target_class.shape[1]):
+            if bg[row, col] == gr[row, col]:
+                target_class[row, col] = bg[row, col]
+            elif bg[row, col] == rb[row, col]:
+                target_class[row, col] = bg[row, col]
+            elif gr[row, col] == rb[row, col]:
+                target_class[row, col] = gr[row, col]
+
+    return target_class
 
 def visualize_classifier(classifier, description):
     visualize = np.zeros((classifier.shape[0], classifier.shape[1], 3))
@@ -121,18 +145,41 @@ ref_features = local_features(ref)
 print("reference features", ref_features)
 target_features = local_features(target)
 print("target_features", target_features)
-label_color = max_color_channel(ref, ref_color)
-label_color = label_color[1:label_color.shape[0]-1, 1:label_color.shape[1]-1]
+# label_color = max_color_channel(ref, ref_color)
+bg_max = max_color_channel(ref_color, 0, 1)
+gr_max = max_color_channel(ref_color, 1, 2)
+rb_max = max_color_channel(ref_color, 0, 2)
+bg_max = bg_max[1:bg_max.shape[0]-1, 1:bg_max.shape[1]-1]
+gr_max = gr_max[1:gr_max.shape[0]-1, 1:gr_max.shape[1]-1]
+rb_max = rb_max[1:rb_max.shape[0]-1, 1:rb_max.shape[1]-1]
+# label_color = label_color[1:label_color.shape[0]-1, 1:label_color.shape[1]-1]
 
 # Step 2.5 SVM Classification
 
-svm_model = svm.SVC(kernel='rbf')
+# svm_model = svm.SVC(kernel='rbf')
+svm_model_bg = svm.SVC(kernel='rbf')
+svm_model_gr = svm.SVC(kernel='rbf')
+svm_model_rb = svm.SVC(kernel='rbf')
 print("fitting model")
 #svm_model.fit(ref_features.flatten().reshape(-1, 5), label_color.flatten())
-svm_model.fit(ref_features.flatten().reshape(-1, 5), label_color.flatten())
+# svm_model.fit(ref_features.flatten().reshape(-1, 5), label_color.flatten())
+svm_model_bg.fit(ref_features.flatten().reshape(-1, 5), bg_max.flatten())
+svm_model_gr.fit(ref_features.flatten().reshape(-1, 5), gr_max.flatten())
+svm_model_rb.fit(ref_features.flatten().reshape(-1, 5), rb_max.flatten())
+
 print("predicting target")
-target_class = svm_model.predict(target_features.flatten().reshape(-1, 5))
-target_class = target_class.reshape((target.shape[0]-2, target.shape[1]-2))
+# target_class = svm_model.predict(target_features.flatten().reshape(-1, 5))
+target_class_bg = svm_model_bg.predict(target_features.flatten().reshape(-1, 5))
+target_class_gr = svm_model_gr.predict(target_features.flatten().reshape(-1, 5))
+target_class_rb = svm_model_rb.predict(target_features.flatten().reshape(-1, 5))
+# target_class = target_class.reshape((target.shape[0]-2, target.shape[1]-2))
+target_class_bg = target_class_bg.reshape((target.shape[0]-2, target.shape[1]-2))
+target_class_gr = target_class_gr.reshape((target.shape[0]-2, target.shape[1]-2))
+target_class_rb = target_class_rb.reshape((target.shape[0]-2, target.shape[1]-2))
+
+target_class = voting(target_class_bg, target_class_gr, target_class_rb)
+label_color  = voting(bg_max, gr_max, rb_max)
+
 print('target class', target_class)
 print('target class shape', target_class.shape)
 visualize_classifier(target_class, 'target image classifier')
