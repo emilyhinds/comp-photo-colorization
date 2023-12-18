@@ -541,9 +541,9 @@ def colorize(target, ref_color, segments_target, segments_ref, reference_feature
             
             # print("DONE FINDING BEST MATCH")
            
-            show_superpixel(target_superpixel, segments_target, target)
-            print(ref_color.shape)
-            show_superpixel(ref_superpixel, segments_ref, ref_color[:,:,0])
+            # show_superpixel(target_superpixel, segments_target, target)
+            # print(ref_color.shape)
+            # show_superpixel(ref_superpixel, segments_ref, ref_color[:,:,0])
 
 
             #get best pixel match in superpixel
