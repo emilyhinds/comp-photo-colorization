@@ -144,10 +144,8 @@ def make_label(ref_color, color_channel):
 def merge_bgr_classifiers(target_b_class, target_g_class, target_r_class):
     '''
     Creates one classifier for the target image based on the separate b, g, r ones.
-    When a single pixel is predicted to have multiple best matches, one is randomly
-    chosen (THIS MIGHT NEED TO CHANGE FOR THE RESULTS TO LOOK BETTER - for example
-    we could default to blue or somehow find out what the majority of the reference 
-    image was and set that to be the default)
+    When a single pixel is predicted to have multiple best matches, one is arbitrarily
+    chosen
 
     Params: 
         target_b_class: 1 where pixels are predicted to have blue as the highest color channel
