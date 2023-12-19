@@ -3,8 +3,6 @@ import cv2
 from sklearn import svm
 from skimage.segmentation import slic, mark_boundaries
 from skimage.feature import graycomatrix, graycoprops, local_binary_pattern
-from skimage.color import lab2rgb, rgb2lab
-from skimage import io
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
@@ -24,24 +22,19 @@ Image datasets from: https://github.com/ByUnal/Example-based-Image-Colorization-
 '''
 
 #Step 0 Load in Reference and Target Image as grayscale
-curr_img = 9
+curr_img = 19
 
 ref = cv2.imread('../data/' + str(curr_img) + '_a_source.png', cv2.IMREAD_GRAYSCALE)
 ref_color = cv2.imread('../data/' + str(curr_img) + '_a_source.png', cv2.IMREAD_COLOR)
 target = cv2.imread('../data/' + str(curr_img) + '_b_target.png', cv2.IMREAD_GRAYSCALE)
 ground_truth = cv2.imread('../data/' + str(curr_img) + '_c_groundtruth.png', cv2.IMREAD_COLOR)
 
-
-# print(ref.shape)
-# print(target.shape)
 # show images
 cv2.imshow('Target', target)
 cv2.imshow('Reference', ref)
 cv2.imshow('Reference Color', ref_color)
 
 cv2.waitKey(0)
-# cv2.destroyAllWindows()
-
 
 # Step 2 Superpixel Extraction Using ISLIC for grayscale
 
@@ -79,24 +72,9 @@ def local_features(img):
             homogeneity = np.mean(graycoprops(glcm, 'homogeneity'))
             correlation = np.mean(graycoprops(glcm, 'correlation'))
             lbp = np.mean(local_binary_pattern(window, 8, 1, method='uniform'))
-            # print("mean luminance : ", mean_luminance)
-            # print("entropy : ", entropy)
-            # print("homogeneity : ", homogeneity)
-            # print("correlation : ", correlation)
-            # print("lbp : ", lbp)
 
             features[row - 1, col - 1] = (mean_luminance, entropy, homogeneity, correlation, lbp)
     return features
-
-# def max_color_channel(ref, ref_color):
-#     bgr_image = np.zeros_like(ref)
-
-#     for row in range (ref.shape[0]):
-#         for col in range (ref.shape[1]):
-#             max_channel  = np.argmax(ref_color[row, col])
-#             bgr_image[row, col] = max_channel
-#             # print(max_channel)
-#     return bgr_image
 
 def max_color_channel(ref_color, c1, c2):
     max_channels = np.zeros((ref_color.shape[0], ref_color.shape[1]))
@@ -140,75 +118,11 @@ def visualize_classifier(classifier, description):
     cv2.imshow(description, visualize)
     cv2.waitKey(0)
 
-    # visualize_lab = cv2.cvtColor(visualize.copy().astype(np.uint8), cv2.COLOR_BGR2Lab)
-    # cv2.imshow(description, visualize)
-    # cv2.imshow(description + " in Lab", visualize_lab)
-    
-    # visualize_bgr_again = cv2.cvtColor(visualize_lab, cv2.COLOR_Lab2BGR)
-    # cv2.imshow(description + " in BGR", visualize_bgr_again)
-    # cv2.waitKey(0)
-
 
 print("calculating reference local features")
 ref_features = local_features(ref)
-# print("reference features", ref_features)
 print("calculating target local features")
 target_features = local_features(target)
-# print("target_features", target_features)
-
-
-# # Chris one-to-one approach:
-
-# # label_color = max_color_channel(ref, ref_color)
-# bg_max = max_color_channel(ref_color, 0, 1)
-# gr_max = max_color_channel(ref_color, 1, 2)
-# rb_max = max_color_channel(ref_color, 0, 2)
-# bg_max = bg_max[1:bg_max.shape[0]-1, 1:bg_max.shape[1]-1]
-# gr_max = gr_max[1:gr_max.shape[0]-1, 1:gr_max.shape[1]-1]
-# rb_max = rb_max[1:rb_max.shape[0]-1, 1:rb_max.shape[1]-1]
-# # label_color = label_color[1:label_color.shape[0]-1, 1:label_color.shape[1]-1]
-
-# # Step 2.5 SVM Classification
-
-# # svm_model = svm.SVC(kernel='rbf')
-# svm_model_bg = svm.SVC(kernel='rbf')
-# svm_model_gr = svm.SVC(kernel='rbf')
-# svm_model_rb = svm.SVC(kernel='rbf')
-# print("fitting model")
-# # DOES this need to reassign variables or does calling fit change the model itself?
-# #svm_model.fit(ref_features.flatten().reshape(-1, 5), label_color.flatten())
-# # svm_model.fit(ref_features.flatten().reshape(-1, 5), label_color.flatten())
-# svm_model_bg.fit(ref_features.flatten().reshape(-1, 5), bg_max.flatten())
-# svm_model_gr.fit(ref_features.flatten().reshape(-1, 5), gr_max.flatten())
-# svm_model_rb.fit(ref_features.flatten().reshape(-1, 5), rb_max.flatten())
-
-# print("predicting target")
-# # target_class = svm_model.predict(target_features.flatten().reshape(-1, 5))
-# target_class_bg = svm_model_bg.predict(target_features.flatten().reshape(-1, 5))
-# target_class_gr = svm_model_gr.predict(target_features.flatten().reshape(-1, 5))
-# target_class_rb = svm_model_rb.predict(target_features.flatten().reshape(-1, 5))
-# # target_class = target_class.reshape((target.shape[0]-2, target.shape[1]-2))
-# target_class_bg = target_class_bg.reshape((target.shape[0]-2, target.shape[1]-2))
-# target_class_gr = target_class_gr.reshape((target.shape[0]-2, target.shape[1]-2))
-# target_class_rb = target_class_rb.reshape((target.shape[0]-2, target.shape[1]-2))
-
-# target_class = voting(target_class_bg, target_class_gr, target_class_rb)
-# label_color  = voting(bg_max, gr_max, rb_max)
-
-# print('target class', target_class)
-# print('target class shape', target_class.shape)
-# visualize_classifier(target_class, 'target image classifier')
-
-# print("predicting ref")
-# ref_class = label_color
-# print('ref class', ref_class)
-# print('ref class shape', ref_class.shape)
-# visualize_classifier(ref_class, 'reference image classifier')
-# # ref_class = svm_model.predict(ref_features.flatten().reshape(-1, 5))
-# # ref_class = ref_class.reshape((ref.shape[0]-2, ref.shape[1]-2))
-# print("done predicting")
-
-# EMILY FUNCTIONS
 
 def make_label(ref_color, color_channel):
     '''
@@ -299,11 +213,6 @@ def merge_bgr_classifiers(target_b_class, target_g_class, target_r_class):
     print('Alls: ', str(bgr_counter), ' Nones: ', str(none_counter))
     return merged_class
 
-
-# Emily new attempt: one-to-rest approach
-# aim to separate one color channel from the other two
-# Have b, g, r labels
-
 # make labels
 b_label = make_label(ref_color, 0)
 g_label = make_label(ref_color, 1)
@@ -318,7 +227,7 @@ b_svm_model = svm.SVC(kernel='rbf')
 g_svm_model = svm.SVC(kernel='rbf')
 r_svm_model = svm.SVC(kernel='rbf')
 
-# why is this being reshaped? does this need to be reassigned variables?
+
 print("fitting blue model")
 b_svm_model.fit(ref_features.flatten().reshape(-1, 5), b_label.flatten())
 print("fitting green model")
@@ -346,7 +255,7 @@ target_class = merge_bgr_classifiers(target_b_class, target_g_class, target_r_cl
 print('target class shape', target_class.shape)
 visualize_classifier(target_class, 'target image classifier')
 
-# (redundant) but visualize the reference classifier
+# visualize the reference classifier
 ref_class = merge_bgr_classifiers(b_label, g_label, r_label)
 visualize_classifier(ref_class, 'reference image classifier')
 
@@ -438,23 +347,6 @@ def superpixel_features(image, segments, classification):
 
     return superpixel_features
 
-def show_superpixel(superpixel_id, segments, image):
-    '''
-    Shows the superpixel with the given superpixel number
-    '''
-    print("show superpixel")
-    print(image.dtype)
-    print(image)
-    superpixel_image = np.zeros((segments.shape[0], segments.shape[1]))
-    for row in range(segments.shape[0]):
-        for col in range(segments.shape[1]):
-            if segments[row, col] == superpixel_id:
-                superpixel_image[row, col] = image[row, col]
-    cv2.imshow('Superpixel', superpixel_image)
-    cv2.waitKey(0)
-    # cv2.destroyAllWindows()
-
-
 def find_best_match(target_features, ref_superpixels, target_pixel_class):
     '''
     Finds the best matching superpixel in the reference image
@@ -469,38 +361,23 @@ def find_best_match(target_features, ref_superpixels, target_pixel_class):
     '''
     best_diff = np.inf
     best_match = None
-    # print('target pixel class', target_pixel_class)
     for i in range(len(ref_superpixels)):
         difference  = np.abs(target_features[0] - ref_superpixels[i][0]) + np.abs(target_features[1] - ref_superpixels[i][1])
-        # print(difference) # sometimes this is nan
         if difference < best_diff:
-            # print(ref_superpixels[i][6 + target_pixel_class])
-            # print(ref_superpixels[i][6 + target_pixel_class] == 1)
-
             if target_pixel_class == 0:
                 if ref_superpixels[i][6] == 1:
                     best_diff = difference
                     best_match = i
-                    # print("found best match, # " + str(i) + " for class " + str(target_pixel_class))
             
             elif target_pixel_class == 1:
                 if ref_superpixels[i][7] == 1:
                     best_diff = difference
                     best_match = i
-                    # print("found best match, # " + str(i) + " for class " + str(target_pixel_class))
             
             elif target_pixel_class == 2:    
                 if ref_superpixels[i][8] == 1:
                     best_diff = difference
                     best_match = i
-                    # print("found best match, # " + str(i) + " for class " + str(target_pixel_class))
-
-            # # this should work but I don't think it does for some reason 
-            # if ref_superpixels[i][6 + target_pixel_class] == 1:
-            #     best_diff = difference
-            #     best_match = i
-            #     # this seems to never work for classes other than 0
-            #     print("found best match, # " + str(i) + " for class " + str(target_pixel_class))
  
     return best_match
 
@@ -509,43 +386,21 @@ def colorize(target, ref_color, segments_target, segments_ref, reference_feature
     '''
     Colorizes the target image using the reference image
     '''
-    print(target.dtype)
-    print(ref_color.dtype)
-    # target = (target/256).astype(np.float32) # Convert target to float32
-    # ref_color = cv2.cvtColor((ref_color/256).astype(np.float32), cv2.COLOR_BGR2Lab) # Convert color reference to LAB space
     
     ref_color = cv2.cvtColor(ref_color, cv2.COLOR_BGR2Lab) # Convert color reference to LAB space
-    
-    # print(target) # goes 0 -> 1
-    # print(ref_color) # goes -128 -> 127
-    print("color ref type:", ref_color.dtype)
-    print("target type:", target.dtype)
-    # ref_color = ref_color.astype(np.float32)
-
     colorized = np.zeros((target.shape[0], target.shape[1], 3), dtype=np.uint8)
-    
-    # no_matches = 0
     
     print('Colorizing locally')
 
     # loop through target image except along edges
     for row in tqdm(range(2, target.shape[0]-2)):
         for col in range(2, target.shape[1]-2):
-            #print(ref_color[row][col])
-
             #get best superpixel match
             target_superpixel = segments_target[row, col]
             target_superpixel_features = target_features[target_superpixel]
             target_pixel_class = target_class[row-1, col-1]
             ref_superpixel = find_best_match(target_superpixel_features, reference_features, target_pixel_class)
             
-            # print("DONE FINDING BEST MATCH")
-           
-            # show_superpixel(target_superpixel, segments_target, target)
-            # print(ref_color.shape)
-            # show_superpixel(ref_superpixel, segments_ref, ref_color[:,:,0])
-
-
             #get best pixel match in superpixel
             target_pixel = target[row, col]
             neighbors = target[row - 2 : row + 2, col - 2 : col + 2]
@@ -568,19 +423,12 @@ def colorize(target, ref_color, segments_target, segments_ref, reference_feature
 
                     if target_pixel_class == reference_pixel_class:
                         if (difference < best_diff):
-                            # print("FOUND BEST MATCH PIXEL")
                             best_diff = difference
                             best_match = ref_pixel
                         random_pixel += 1
 
             colorized[row, col] = (target_pixel, best_match[1], best_match[2])
-            # if best_match is None:
-            #     no_matches += 1
-            #     colorized[row, col] = (target_pixel, 0, 0)
-            # else: 
-            #     colorized[row, col] = (target_pixel, best_match[1], best_match[2])
-            
-    # print("no matches: ", no_matches)
+           
     return colorized
  
 
@@ -620,23 +468,13 @@ def neighborhoods(image):
 def colorize2(target, ref, ref_class, target_class):
     target_feats = neighborhoods(target)
     ref_feats = neighborhoods(ref)
-    print("colorize 2 start", target.dtype) # uint8
-    # print(target) # 0-255
-    print(target.dtype) # uint8
-    print(ref.dtype) # uint8
-    # print(target) # 0-255
-    
     ref = cv2.cvtColor((ref), cv2.COLOR_BGR2Lab) # Convert color reference to LAB space
-
-    print(ref.dtype) # uint8
-    # print(ref) # 0-255
 
     print('Starting global colorizing')
 
     colorized = np.zeros((target.shape[0], target.shape[1], 3)).astype(np.uint8)
 
     for row in tqdm(range(2, target.shape[0]-2)):
-    # for row in range(2, target.shape[0]-2):
         for col in range(2, target.shape[1]-2):
             
             target_pix = target[row, col]
@@ -663,12 +501,7 @@ def colorize2(target, ref, ref_class, target_class):
 
 
             colorized[row, col] = (target_pix, best_match[1], best_match[2])
-            # print('best match', best_match)
-            # print('combined', colorized[row, col])
 
-    # print("end of colorize2 function")
-    # print(colorized.dtype)
-    # print(colorized[2:colorized.shape[0]-2, 2:colorized.shape[1]-2, :])
     return colorized
 
 
@@ -681,18 +514,9 @@ colorized2 = colorize2(target, ref_color, ref_class, target_class)
 display_lab(colorized)
 display_lab(colorized2)
 
-# print("post colorized")
-# print(colorized.dtype)
-# print(colorized[2:colorized.shape[0]-2, 2:colorized.shape[1]-2, :])
-# cv2.imshow('Colorized still in Lab', colorized)
-# cv2.imshow('Colorized2 still in Lab', colorized2)
-
 #Convert back form LAB to BGR
 colorized_cv2 = cv2.cvtColor(colorized, cv2.COLOR_Lab2BGR)
 colorized2_cv2 = cv2.cvtColor(colorized2, cv2.COLOR_Lab2BGR)
-# print("POST CONVERSION TO BGR cv2")
-# print(colorized_cv2.dtype)
-# print(colorized_cv2[2:colorized_cv2.shape[0]-2, 2:colorized_cv2.shape[1]-2, :])
 
 
 cv2.imshow('Ground Truth', ground_truth)
@@ -716,20 +540,3 @@ global_merged = merge_bgr_classifiers(global_b_label, global_g_label, global_r_l
 visualize_classifier(global_merged, "Globally Colorized")
 
 cv2.waitKey(0)
-
-
-
-# colorized_skimage = lab2rgb(colorized).astype(np.float32)
-# print("POST CONVERSION TO RGB skimage as type uint8")
-# print(colorized_skimage.dtype)
-# print(colorized_skimage[2:colorized_skimage.shape[0]-2, 2:colorized_skimage.shape[1]-2, :])
-# # show result
-# io.imshow(colorized_skimage)
-# io.show()
-
-# cv2.imshow('Colorized converted to rgb using skimage', colorized_skimage)
-# bgr_colorized_skimage = colorized_skimage[:, :, ::-1].copy()
-# cv2.imshow('Colorized converted to bgr using skimage', bgr_colorized_skimage)
-# cv2.waitKey(0)
-
-# cv2.destroyAllWindows()
